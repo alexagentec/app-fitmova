@@ -1,16 +1,26 @@
 
-import React from 'react';
-import ReactDOM from 'react-dom/client';
+import React, { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import App from './App';
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
-}
+// Garantir que o DOM esteja carregado antes de montar
+const mountApp = () => {
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    console.error("Erro crítico: Elemento #root não encontrado no HTML.");
+    return;
+  }
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+  const root = createRoot(rootElement);
+  root.render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', mountApp);
+} else {
+  mountApp();
+}
