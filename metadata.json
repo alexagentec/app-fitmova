@@ -1,0 +1,5 @@
+{
+  "name": "Copy of Fitmova",
+  "description": "Um aplicativo de personal trainer inteligente que cria planos de treino personalizados baseados em anamnese, oferece dicas de nutrição e estratégias de performance usando a API Gemini.",
+  "requestFramePermissions": []
+}
