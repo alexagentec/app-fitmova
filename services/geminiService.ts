@@ -2,8 +2,21 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UserProfile, WorkoutPlan, DietPlan, BMIResult, HealthTip } from "../types";
 
-// Corrected API key initialization to use process.env.API_KEY directly
+// Inicialização segura com a chave de ambiente
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const cleanJSONResponse = (text: string) => {
+  // Remove possíveis markdown de código que a IA costuma retornar
+  return text.replace(/```json|```/g, '').trim();
+};
+
+// Exportando a interface ExecutionGuide para ser usada em componentes
+export interface ExecutionGuide {
+  steps: string[];
+  commonMistakes: string[];
+  muscleGroups: string[];
+  videoSearchUrl: string;
+}
 
 export const calculateBMI = (weight: number, height: number): BMIResult => {
   const score = weight / ((height / 100) * (height / 100));
@@ -13,19 +26,19 @@ export const calculateBMI = (weight: number, height: number): BMIResult => {
 
   if (score < 18.5) {
     category = 'Abaixo do Peso';
-    interpretation = 'Você está abaixo do peso ideal para sua altura. Foco em nutrição calórica e ganho de massa.';
+    interpretation = 'Foco em nutrição calórica e ganho de massa.';
     color = 'text-blue-400';
   } else if (score < 25) {
     category = 'Peso Ideal';
-    interpretation = 'Parabéns! Você está na faixa de peso saudável. Vamos manter e tonificar.';
+    interpretation = 'Parabéns! Você está na faixa de peso saudável.';
     color = 'text-emerald-400';
   } else if (score < 30) {
     category = 'Sobrepeso';
-    interpretation = 'Você está levemente acima do peso. Exercícios aeróbicos e controle calórico ajudarão.';
+    interpretation = 'Exercícios aeróbicos e controle calórico ajudarão.';
     color = 'text-yellow-400';
   } else {
     category = 'Obesidade';
-    interpretation = 'Seu IMC indica obesidade. O foco inicial será em condicionamento e perda de gordura sustentável.';
+    interpretation = 'O foco inicial será em condicionamento e perda de gordura.';
     color = 'text-red-400';
   }
 
@@ -33,14 +46,9 @@ export const calculateBMI = (weight: number, height: number): BMIResult => {
 };
 
 export const generateWorkoutPlan = async (profile: UserProfile): Promise<WorkoutPlan> => {
-  const prompt = `Atue como um Master Personal Trainer. Gere um plano de treino detalhado:
-    Perfil: ${profile.name}, ${profile.sex}, ${profile.age} anos.
-    Objetivo: ${profile.goal} (Nível: ${profile.level}).
-    Ambiente: ${profile.environment} (Treino ${profile.environment === 'home_objects' ? 'em casa com objetos domésticos' : profile.environment === 'outdoor' ? 'ao ar livre' : profile.environment === 'bodyweight' ? 'com peso do corpo' : 'em academia'}).
-    Restrições: ${profile.injuries || 'Nenhuma'}. Histórico: ${profile.healthHistory}.
-    Disponibilidade: ${profile.daysPerWeek} dias/semana, ${profile.timePerWorkout} min/dia.
-    
-    O plano deve ser criativo e adaptado EXATAMENTE ao ambiente e restrições.`;
+  const prompt = `Atue como um Master Personal Trainer. Gere um plano de treino detalhado em JSON:
+    Perfil: ${profile.name}, Objetivo: ${profile.goal}, Ambiente: ${profile.environment}.
+    Disponibilidade: ${profile.daysPerWeek} dias/semana, ${profile.timePerWorkout} min/dia.`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -87,13 +95,17 @@ export const generateWorkoutPlan = async (profile: UserProfile): Promise<Workout
     }
   });
 
-  return JSON.parse(response.text || '{}');
+  try {
+    const rawText = response.text || '{}';
+    return JSON.parse(cleanJSONResponse(rawText));
+  } catch (e) {
+    console.error("Erro no parse do JSON do treino:", e);
+    throw new Error("Resposta da IA inválida");
+  }
 };
 
 export const generateDietPlan = async (profile: UserProfile): Promise<DietPlan> => {
-  const prompt = `Atue como um Nutricionista Esportivo. Sugira um plano alimentar saudável adaptado ao objetivo: ${profile.goal}.
-  Perfil: ${profile.weight}kg, ${profile.height}cm, Nível de atividade: ${profile.activityLevel}.
-  AVISO: Inclua um aviso de que isso não substitui acompanhamento médico.`;
+  const prompt = `Sugira um plano alimentar saudável para o objetivo: ${profile.goal}. Perfil: ${profile.weight}kg, ${profile.height}cm.`;
 
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -125,75 +137,17 @@ export const generateDietPlan = async (profile: UserProfile): Promise<DietPlan> 
     }
   });
 
-  return JSON.parse(response.text || '{}');
-};
-
-export interface ExecutionGuide {
-  steps: string[];
-  commonMistakes: string[];
-  muscleGroups: string[];
-  videoSearchUrl: string;
-}
-
-export const getExerciseExecution = async (exerciseName: string, profile: UserProfile): Promise<ExecutionGuide> => {
-  const prompt = `Explique a execução biomecânica correta de: "${exerciseName}".
-  Perfil do aluno: ${profile.injuries}.
-  Foque em postura, respiração e erros comuns.`;
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: prompt,
-    config: {
-      tools: [{ googleSearch: {} }],
-      responseMimeType: "application/json",
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          steps: { type: Type.ARRAY, items: { type: Type.STRING } },
-          commonMistakes: { type: Type.ARRAY, items: { type: Type.STRING } },
-          muscleGroups: { type: Type.ARRAY, items: { type: Type.STRING } },
-          videoSearchUrl: { type: Type.STRING }
-        },
-        required: ["steps", "commonMistakes", "muscleGroups", "videoSearchUrl"]
-      }
-    }
-  });
-
-  return JSON.parse(response.text || '{}');
-};
-
-export const generateExerciseIllustration = async (exerciseName: string): Promise<string | null> => {
-  const prompt = `Professional 3D anatomical fitness avatar performing ${exerciseName}. 
-  Muscles highlighted in bright neon blue/orange. Medical style clarity. Solid background.`;
-
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash-image',
-      contents: { parts: [{ text: prompt }] },
-      config: { imageConfig: { aspectRatio: "1:1" } }
-    });
-
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      }
-    }
-    return null;
-  } catch (error) {
-    console.error("Image generation error:", error);
-    return null;
+    return JSON.parse(cleanJSONResponse(response.text || '{}'));
+  } catch (e) {
+    throw new Error("Erro no parse da dieta");
   }
 };
 
-// Added missing function used in TipsSection
 export const getHealthTips = async (profile: UserProfile, category: 'nutrition' | 'performance'): Promise<HealthTip[]> => {
-  const prompt = `Atue como um especialista em ${category === 'nutrition' ? 'Nutrição Esportiva' : 'Performance e Biomecânica'}. 
-  Gere 3 dicas práticas e curtas para ${profile.name} (Objetivo: ${profile.goal}, Nível: ${profile.level}).
-  As dicas devem ser adaptadas para o ambiente: ${profile.environment}.`;
-
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
-    contents: prompt,
+    contents: `Dicas de ${category} para ${profile.goal}.`,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -209,6 +163,40 @@ export const getHealthTips = async (profile: UserProfile, category: 'nutrition' 
       }
     }
   });
+  return JSON.parse(cleanJSONResponse(response.text || '[]'));
+};
 
-  return JSON.parse(response.text || '[]');
+// Adicionando o tipo de retorno explicitamente
+export const getExerciseExecution = async (exerciseName: string, profile: UserProfile): Promise<ExecutionGuide> => {
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: `Como executar: ${exerciseName}`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          steps: { type: Type.ARRAY, items: { type: Type.STRING } },
+          commonMistakes: { type: Type.ARRAY, items: { type: Type.STRING } },
+          muscleGroups: { type: Type.ARRAY, items: { type: Type.STRING } },
+          videoSearchUrl: { type: Type.STRING }
+        },
+        required: ["steps", "commonMistakes", "muscleGroups", "videoSearchUrl"]
+      }
+    }
+  });
+  return JSON.parse(cleanJSONResponse(response.text || '{}'));
+};
+
+export const generateExerciseIllustration = async (exerciseName: string): Promise<string | null> => {
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: `Fitness exercise illustration: ${exerciseName}` }] },
+    });
+    for (const part of response.candidates?.[0]?.content?.parts || []) {
+      if (part.inlineData) return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    }
+    return null;
+  } catch { return null; }
 };

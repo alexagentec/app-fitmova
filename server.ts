@@ -25,12 +25,14 @@ const checkActive = (req: any, res: any, next: any) => {
 app.post('/api/generate-workout', checkActive, async (req, res) => {
   try {
     const { profile } = req.body;
-    const model = ai.models.getGenerativeModel({ model: "gemini-3-flash-preview" });
+    // Fix: Always use ai.models.generateContent directly with the model name and prompt.
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: `Gere um plano de treino para ${profile.name}, objetivo ${profile.goal}...`
+    });
     
-    const prompt = `Gere um plano de treino para ${profile.name}, objetivo ${profile.goal}...`;
-    const result = await model.generateContent(prompt);
-    
-    res.json(JSON.parse(result.response.text()));
+    // Fix: Access the generated text using the .text property (not a method).
+    res.json(JSON.parse(response.text || '{}'));
   } catch (error) {
     res.status(500).json({ error: "Erro ao processar IA" });
   }
