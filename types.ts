@@ -13,10 +13,14 @@ export interface NetworkMember {
   level: 1 | 2 | 3;
   joinDate: string;
   isActive: boolean;
+  whatsapp?: string; // Novo campo
 }
+
+export type CareerLevelType = 'START' | 'BUILDER' | 'LEADER' | 'ELITE' | 'PRIME' | 'MASTER' | 'LEGACY' | 'ORIGIN';
 
 export interface UserProfile {
   name: string;
+  whatsapp?: string; // Novo campo
   age: number;
   sex: 'Masculino' | 'Feminino' | 'Outro';
   weight: number;
@@ -35,7 +39,9 @@ export interface UserProfile {
   referralCode: string;
   referredBy?: string;
   balance: number;
-  referralCount: number;
+  referralCount: number; // Diretos
+  indirectCount: number; // Indiretos
+  currentCareerLevel: CareerLevelType;
   network: NetworkMember[];
   transactions: Transaction[];
 }
